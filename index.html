@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BODYCAM PVP</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020303;font-family:Arial,sans-serif}
+canvas{display:block}
+#menu{
+position:fixed;inset:0;z-index:10;
+display:flex;align-items:center;justify-content:center;
+background:radial-gradient(circle at center,#101514 0%,#030505 55%,#000 100%);
+color:#ddd
+}
+.menuBox{width:420px;text-align:center}
+.logo{font-size:48px;font-weight:900;letter-spacing:10px;text-shadow:0 0 25px #aaa;margin-bottom:5px}
+.sub{font-size:11px;letter-spacing:5px;opacity:.45;margin-bottom:42px}
+button{
+width:100%;padding:17px;margin:7px 0;
+background:#111615;border:1px solid #454b49;color:#ddd;
+font-size:15px;font-weight:bold;letter-spacing:3px;cursor:pointer;
+transition:.15s
+}
+button:hover{background:#242927;border-color:#aaa;box-shadow:0 0 20px #222}
+.online{margin:20px 0;font-size:13px;letter-spacing:2px;opacity:.7}
+#lobbyBox{display:none;margin-top:15px}
+input{
+width:100%;padding:15px;background:#080a0a;border:1px solid #333;
+color:#ddd;text-align:center;font-size:18px;letter-spacing:5px;outline:none
+}
+#credits{display:none;margin-top:20px;padding:18px;border-top:1px solid #292d2c;color:#aaa;font-size:13px;line-height:1.8}
+#gameHud{display:none;position:fixed;inset:0;z-index:5;pointer-events:none;color:#ddd}
+#cross{position:absolute;left:50%;top:50%;width:5px;height:5px;border:1px solid #aaa;border-radius:50%;transform:translate(-50%,-50%);opacity:.7}
+#status{position:absolute;left:18px;bottom:18px;font-size:14px;text-shadow:0 2px 4px #000;line-height:1.5}
+#help{position:absolute;right:18px;bottom:18px;text-align:right;font-size:12px;line-height:1.55;opacity:.6}
+#title{position:absolute;top:16px;left:18px;font-weight:bold;letter-spacing:3px;font-size:13px;opacity:.65}
+#damage{position:absolute;inset:0;background:rgba(150,0,0,.65);opacity:0}
+#flash{position:absolute;inset:0;background:#fff;opacity:0}
+#lobbyCode{position:absolute;top:16px;right:18px;font-size:12px;letter-spacing:3px;opacity:.7}
+</style>
+</head>
+<body>
+
+<div id="menu">
+<div class="menuBox">
+<div class="logo">BODYCAM</div>
+<div class="sub">MULTIPLAYER PVP</div>
+
+<div class="online">● <span id="onlineCount">1</span> PLAYERS ONLINE</div>
+
+<button id="play">PLAY</button>
+<button id="createLobby">CREATE LOBBY</button>
+
+<div id="lobbyBox">
+<input id="lobbyCodeInput" maxlength="6" placeholder="LOBBY CODE">
+<button id="joinLobby">JOIN LOBBY</button>
+</div>
+
+<button id="creditsButton">CREDITS</button>
+
+<div id="credits">
+<strong>BODYCAM PVP</strong><br>
+Made by Owen<br>
+Game Developer · Creator<br><br>
+Thanks for playing.
+</div>
+</div>
+</div>
+
+<div id="gameHud">
+<div id="title">BODYCAM // PVP</div>
+<div id="lobbyCode">LOBBY: <span id="activeLobby">------</span></div>
+<div id="cross"></div>
+<div id="status">HP 100<br>STAMINA 100<br>FLASHLIGHT ON</div>
+<div id="help">WASD MOVE · SHIFT SPRINT · CTRL CROUCH<br>F FLASHLIGHT · LMB FIRE · ESC RELEASE MOUSE</div>
+<div id="damage"></div>
+<div id="flash"></div>
+</div>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+
+const menu=document.getElementById("menu");
+const gameHud=document.getElementById("gameHud");
+const onlineCount=document.getElementById("onlineCount");
+const lobbyBox=document.getElementById("lobbyBox");
+const lobbyInput=document.getElementById("lobbyCodeInput");
+const activeLobby=document.getElementById("activeLobby");
+
+let fakeOnline=Math.floor(Math.random()*8)+3;
+onlineCount.textContent=fakeOnline;
+
+setInterval(()=>{
+fakeOnline=Math.max(1,fakeOnline+Math.floor(Math.random()*3)-1);
+onlineCount.textContent=fakeOnline;
+},5000);
+
+function makeCode(){
+const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+let code="";
+for(let i=0;i<6;i++)code+=chars[Math.floor(Math.random()*chars.length)];
+return code;
+}
+
+function startGame(code){
+activeLobby.textContent=code;
+menu.style.display="none";
+gameHud.style.display="block";
+renderer.domElement.requestPointerLock();
+}
+
+document.getElementById("play").onclick=()=>{
+startGame(makeCode());
+};
+
+document.getElementById("createLobby").onclick=()=>{
+lobbyBox.style.display=lobbyBox.style.display==="block"?"none":"block";
+lobbyInput.value=makeCode();
+};
+
+document.getElementById("joinLobby").onclick=()=>{
+let code=lobbyInput.value.trim().toUpperCase();
+if(code.length<4)code=makeCode();
+startGame(code);
+};
+
+document.getElementById("creditsButton").onclick=()=>{
+const c=document.getElementById("credits");
+c.style.display=c.style.display==="block"?"none":"block";
+};
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x010202);
+scene.fog=new THREE.FogExp2(0x080b0b,.055);
+
+const camera=new THREE.PerspectiveCamera(78,innerWidth/innerHeight,.05,300);
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=.55;
+document.body.appendChild(renderer.domElement);
+
+const ambient=new THREE.HemisphereLight(0x465050,0x020202,.18);
+scene.add(ambient);
+
+const moon=new THREE.DirectionalLight(0x657070,.18);
+moon.position.set(-20,30,-15);
+scene.add(moon);
+
+const groundMat=new THREE.MeshStandardMaterial({
+color:0x151817,
+roughness:1
+});
+
+const ground=new THREE.Mesh(
+new THREE.PlaneGeometry(220,220),
+groundMat
+);
+
+ground.rotation.x=-Math.PI/2;
+scene.add(ground);
+
+function box(x,y,z,sx,sy,sz,color=0x202322){
+const m=new THREE.MeshStandardMaterial({
+color,
+roughness:.92,
+metalness:.05
+});
+
+const o=new THREE.Mesh(
+new THREE.BoxGeometry(sx,sy,sz),
+m
+);
+
+o.position.set(x,y,z);
+scene.add(o);
+return o;
+}
+
+for(let i=0;i<55;i++){
+const x=(Math.random()-.5)*150;
+const z=(Math.random()-.5)*150;
+
+if(Math.hypot(x,z)<18)continue;
+
+const h=1+Math.random()*4;
+
+box(
+x,
+h/2,
+z,
+1+Math.random()*5,
+h,
+1+Math.random()*5,
+0x171a19
+);
+}
+
+for(let i=0;i<12;i++){
+const x=-55+i*10;
+box(x,1.5,-25,7,3,.7,0x292b29);
+}
+
+const player={
+pos:new THREE.Vector3(0,1.7,8),
+yaw:0,
+pitch:0,
+hp:100,
+stamina:100,
+crouch:false,
+flash:true,
+shootCooldown:0
+};
+
+camera.position.copy(player.pos);
+
+const flashlight=new THREE.SpotLight(
+0xffffff,
+18,
+42,
+Math.PI/7,
+.55,
+1.4
+);
+
+flashlight.position.set(0,0,0);
+
+const flashTarget=new THREE.Object3D();
+flashTarget.position.set(0,0,-10);
+
+camera.add(flashlight);
+camera.add(flashTarget);
+
+flashlight.target=flashTarget;
+
+scene.add(camera);
+
+const keys={};
+
+addEventListener("keydown",e=>{
+keys[e.code]=true;
+
+if(e.code==="KeyF"){
+player.flash=!player.flash;
+flashlight.visible=player.flash;
+}
+
+if(e.code==="ControlLeft"||e.code==="ControlRight"){
+player.crouch=true;
+}
+});
+
+addEventListener("keyup",e=>{
+keys[e.code]=false;
+
+if(e.code==="ControlLeft"||e.code==="ControlRight"){
+player.crouch=false;
+}
+});
+
+renderer.domElement.addEventListener("click",()=>{
+renderer.domElement.requestPointerLock();
+});
+
+addEventListener("mousemove",e=>{
+if(document.pointerLockElement!==renderer.domElement)return;
+
+player.yaw-=e.movementX*.0022;
+player.pitch-=e.movementY*.0022;
+
+player.pitch=Math.max(
+-1.45,
+Math.min(1.45,player.pitch)
+);
+});
+
+const bots=[];
+const botMat=new THREE.MeshStandardMaterial({
+color:0x242827,
+roughness:1
+});
+
+const botHeadMat=new THREE.MeshStandardMaterial({
+color:0x363a38,
+roughness:.95
+});
+
+for(let i=0;i<8;i++){
+
+const g=new THREE.Group();
+
+const body=new THREE.Mesh(
+new THREE.BoxGeometry(.65,1.35,.4),
+botMat
+);
+
+body.position.y=.9;
+
+const head=new THREE.Mesh(
+new THREE.SphereGeometry(.22,10,8),
+botHeadMat
+);
+
+head.position.y=1.72;
+
+g.add(body,head);
+
+g.position.set(
+(Math.random()-.5)*55,
+0,
+(Math.random()-.5)*55
+);
+
+if(g.position.length()<15)g.position.z+=25;
+
+scene.add(g);
+
+bots.push({
+g,
+hp:100,
+dir:Math.random()*Math.PI*2,
+next:Math.random()*3
+});
+}
+
+const tracerMat=new THREE.LineBasicMaterial({
+color:0xffc76a,
+transparent:true,
+opacity:.9
+});
+
+function shoot(){
+
+if(player.shootCooldown>0)return;
+
+player.shootCooldown=.13;
+
+const origin=camera.getWorldPosition(
+new THREE.Vector3()
+);
+
+const dir=new THREE.Vector3(
+0,0,-1
+).applyQuaternion(camera.quaternion);
+
+const ray=new THREE.Raycaster(
+origin,
+dir,
+0,
+80
+);
+
+const hits=ray.intersectObjects(
+scene.children,
+true
+);
+
+let end=origin.clone().addScaledVector(dir,80);
+
+for(const h of hits){
+
+if(h.object===ground){
+end.copy(h.point);
+break;
+}
+
+let botIndex=bots.findIndex(
+b=>h.object.parent===b.g||h.object===b.g
+);
+
+if(botIndex>=0){
+bots[botIndex].hp-=34;
+end.copy(h.point);
+break;
+}
+}
+
+const geo=new THREE.BufferGeometry()
+.setFromPoints([origin,end]);
+
+const line=new THREE.Line(
+geo,
+tracerMat
+);
+
+scene.add(line);
+
+setTimeout(()=>{
+scene.remove(line);
+geo.dispose();
+},55);
+
+const f=document.getElementById("flash");
+
+f.style.opacity=".8";
+
+setTimeout(()=>{
+f.style.opacity="0";
+},45);
+}
+
+addEventListener("mousedown",e=>{
+if(e.button===0)shoot();
+});
+
+function updateBots(dt){
+
+for(const b of bots){
+
+if(b.hp<=0){
+b.g.visible=false;
+
+if(Math.random()<.015){
+b.hp=100;
+b.g.visible=true;
+
+b.g.position.set(
+(Math.random()-.5)*55,
+0,
+(Math.random()-.5)*55
+);
+}
+
+continue;
+}
+
+b.next-=dt;
+
+if(b.next<=0){
+b.dir+=(-1+Math.random()*2)*1.5;
+b.next=1+Math.random()*3;
+}
+
+b.g.position.x+=Math.sin(b.dir)*dt*1.25;
+b.g.position.z+=Math.cos(b.dir)*dt*1.25;
+
+if(
+Math.abs(b.g.position.x)>65||
+Math.abs(b.g.position.z)>65
+){
+b.dir+=Math.PI;
+}
+
+b.g.rotation.y=b.dir;
+
+if(Math.random()<dt*.16){
+
+const d=b.g.position.distanceTo(player.pos);
+
+if(d<28){
+
+player.hp-=8;
+
+const dmg=document.getElementById("damage");
+
+dmg.style.opacity=".35";
+
+setTimeout(()=>{
+dmg.style.opacity="0";
+},90);
+
+if(player.hp<=0){
+player.hp=100;
+player.pos.set(0,1.7,8);
+}
+}
+}
+}
+}
+
+let last=performance.now();
+let time=0;
+
+function loop(now){
+
+requestAnimationFrame(loop);
+
+const dt=Math.min(
+(now-last)/1000,
+.05
+);
+
+last=now;
+time+=dt;
+
+const forward=new THREE.Vector3(
+Math.sin(player.yaw),
+0,
+Math.cos(player.yaw)
+);
+
+const right=new THREE.Vector3(
+Math.cos(player.yaw),
+0,
+-Math.sin(player.yaw)
+);
+
+let move=new THREE.Vector3();
+
+if(keys.KeyW)
+move.addScaledVector(forward,-1);
+
+if(keys.KeyS)
+move.add(forward);
+
+if(keys.KeyD)
+move.add(right);
+
+if(keys.KeyA)
+move.addScaledVector(right,-1);
+
+if(move.lengthSq()>0)
+move.normalize();
+
+const sprint=
+(keys.ShiftLeft||keys.ShiftRight)&&
+!player.crouch&&
+player.stamina>1&&
+move.lengthSq()>0;
+
+let speed=
+player.crouch?
+2.0:
+sprint?
+7.2:
+4.1;
+
+if(sprint)
+player.stamina=Math.max(
+0,
+player.stamina-dt*23
+);
+else
+player.stamina=Math.min(
+100,
+player.stamina+dt*15
+);
+
+player.pos.addScaledVector(
+move,
+speed*dt
+);
+
+player.pos.x=THREE.MathUtils.clamp(
+player.pos.x,-100,100
+);
+
+player.pos.z=THREE.MathUtils.clamp(
+player.pos.z,-100,100
+);
+
+const targetHeight=
+player.crouch?
+1.05:
+1.7;
+
+player.pos.y=THREE.MathUtils.lerp(
+player.pos.y,
+targetHeight,
+.18
+);
+
+const moving=move.lengthSq()>0;
+
+const bob=moving?
+Math.sin(
+time*(sprint?13:9)
+)*(sprint?.035:.018):
+0;
+
+camera.position.copy(player.pos);
+camera.position.y+=bob;
+
+camera.rotation.order="YXZ";
+camera.rotation.y=player.yaw;
+camera.rotation.x=player.pitch;
+
+player.shootCooldown=Math.max(
+0,
+player.shootCooldown-dt
+);
+
+updateBots(dt);
+
+document.getElementById("status").innerHTML=
+`HP ${Math.max(0,Math.floor(player.hp))}
+<br>STAMINA ${Math.floor(player.stamina)}
+<br>FLASHLIGHT ${player.flash?"ON":"OFF"}
+${player.crouch?"<br>CROUCH":""}
+${sprint?"<br>SPRINT":""}`;
+
+renderer.render(scene,camera);
+}
+
+requestAnimationFrame(loop);
+
+addEventListener("resize",()=>{
+camera.aspect=innerWidth/innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
